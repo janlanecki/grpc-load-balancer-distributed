@@ -46,7 +46,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -150,7 +149,7 @@ public class ClusterConnector {
   private volatile boolean isLeader = false;
   private volatile boolean stopped = true;
 
-  private ScheduledFuture<?> signUpOrWithdrawThreadHandle;
+  private ScheduledExecutorService signUpOrWithdrawThreadHandle;
   private Thread leadershipThread;
 
   private Integer signUpOrWithdrawPeriod;
@@ -284,7 +283,10 @@ public class ClusterConnector {
         logger.debug("InterruptedException while waiting for leadership thread to stop");
       }
     }
-    this.signUpOrWithdrawThreadHandle.cancel(false);
+    if (mayInterruptIfRunning) {
+      signUpOrWithdrawThreadHandle.shutdownNow();
+    }
+    signUpOrWithdrawThreadHandle.shutdown();
 
     if (checkingHealth) {
       inProcessChannel.shutdown();
@@ -346,36 +348,35 @@ public class ClusterConnector {
    * @param millis how often should the server sign up
    */
   private void runSignUpOrWithdrawThread(int millis) {
-    ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    this.signUpOrWithdrawThreadHandle = Executors.newScheduledThreadPool(1);
 
-    this.signUpOrWithdrawThreadHandle =
-        scheduler.scheduleAtFixedRate(
-            () -> {
-              for (String service : servedServicesNames) {
-                boolean sendUpdate;
+    this.signUpOrWithdrawThreadHandle.scheduleAtFixedRate(
+        () -> {
+          for (String service : servedServicesNames) {
+            boolean sendUpdate;
 
-                if (checkingHealth || !serviceToServers.containsEntry(service, serverDetails)) {
-                  if (!checkingHealth || isHealthy()) {
-                    sendUpdate = serviceToServers.put(service, serverDetails);
-                    if (sendUpdate) {
-                      logger.debug("Adding server for service {}", service);
-                    }
-                  } else { // not healthy
-                    sendUpdate = serviceToServers.remove(service, serverDetails);
-                    if (sendUpdate) {
-                      logger.debug("Removing server for service {}", service);
-                    }
-                  }
-
-                  if (sendUpdate) {
-                    update(service);
-                  }
+            if (checkingHealth || !serviceToServers.containsEntry(service, serverDetails)) {
+              if (!checkingHealth || isHealthy()) {
+                sendUpdate = serviceToServers.put(service, serverDetails);
+                if (sendUpdate) {
+                  logger.debug("Adding server for service {}", service);
+                }
+              } else { // not healthy
+                sendUpdate = serviceToServers.remove(service, serverDetails);
+                if (sendUpdate) {
+                  logger.debug("Removing server for service {}", service);
                 }
               }
-            },
-            0,
-            millis,
-            TimeUnit.MILLISECONDS);
+
+              if (sendUpdate) {
+                update(service);
+              }
+            }
+          }
+        },
+        0,
+        millis,
+        TimeUnit.MILLISECONDS);
   }
 
   /**
@@ -401,6 +402,8 @@ public class ClusterConnector {
         new Thread(
             () -> {
               try {
+                String listenerRegistrationId = "";
+
                 while (!stopped) {
                   try {
                     if (!isLeader) {
@@ -420,7 +423,7 @@ public class ClusterConnector {
                   }
 
                   isLeader = true;
-                  String listenerRegistrationId =
+                  listenerRegistrationId =
                       hz.getCluster().addMembershipListener(new MemberRemovalListener());
                   evictAbsentServers();
 
@@ -431,7 +434,7 @@ public class ClusterConnector {
                   }
 
                   lockMap.unlock("leader-lock");
-                  if (stopped || !lockMap.tryLock("leader-lock")) {
+                  if (!lockMap.tryLock("leader-lock")) {
                     hz.getCluster().removeMembershipListener(listenerRegistrationId);
                     isLeader = false;
                     logger.debug(
@@ -442,6 +445,14 @@ public class ClusterConnector {
                         "Server with address {} gets reelected",
                         serverDetails.getServerAddress().toString());
                   }
+                }
+
+                if (isLeader) {
+                  hz.getCluster().removeMembershipListener(listenerRegistrationId);
+                  isLeader = false;
+                  logger.debug(
+                      "Server with address {} steps down as leader",
+                      serverDetails.getServerAddress().toString());
                 }
 
                 Thread.sleep(1000);
