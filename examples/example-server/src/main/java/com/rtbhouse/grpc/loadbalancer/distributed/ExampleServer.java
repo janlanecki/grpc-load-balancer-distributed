@@ -9,6 +9,13 @@ import java.util.Collections;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * The purpose of this class is purely to demonstrate how to use ClusterConnector in an existing
+ * server.
+ */
+/* Example usage:
+   LOCAL=1 java -jar examples/example-server/target/example-server-1.0-shaded.jar 9090
+*/
 public class ExampleServer {
   private static final Logger logger = LoggerFactory.getLogger(ExampleServer.class);
   private int port;

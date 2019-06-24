@@ -62,7 +62,7 @@ public class HelloWorldClient {
   /* Example usage:
     java -Dio.grpc.internal.DnsNameResolverProvider.enable_grpclb=true -jar \
     examples/hello-world-client/target/hello-world-client-1.0-shaded.jar \
-    "hello.mimgrpc.me:2222" 100
+    "hello.mimgrpc.me:5000" 100
   */
 
   public static void main(String[] args) throws Exception {

@@ -44,3 +44,15 @@ send an updated list of servers to clients subscribed to them.
 
 ### Example usage
 You can find a simple server using ClusterConnector in ExampleServer class. Also I recommend you to look inside the IntegrationTest, which can help you further with understanding the workflow.
+
+In order to run ExampleServers, use:
+```
+LOCAL=1 java -jar examples/example-server/target/example-server-1.0-shaded.jar 9090
+```
+ExampleServer uses localhost address for the discovery of other servers, so it can only be tested locally. But, of course, you can substitute the `useMemberAddresses` parameter given to builder.
+
+In order to run HelloWorldClients, use:
+```
+java -Dio.grpc.internal.DnsNameResolverProvider.enable_grpclb=true -jar examples/hello-world-client/target/hello-world-client-1.0-shaded.jar "hello.mimgrpc.me:5000" 100
+```
+
