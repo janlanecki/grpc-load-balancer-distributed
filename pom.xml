@@ -17,7 +17,7 @@
         <project.version>1.0</project.version>
         <java.version>8</java.version>
 
-        <grpc.version>1.17.1</grpc.version>
+        <grpc.version>1.53.0</grpc.version>
         <proto.google.common.protos.version>1.0.0</proto.google.common.protos.version>
         <protobuf.version>3.5.1</protobuf.version>
         <protoc.version>3.5.1-1</protoc.version>
